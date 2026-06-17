@@ -9,10 +9,32 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const usersFile = path.join(__dirname, 'users.json');
-//const io = new Server(server);
+
+const FRONTEND_URL = process.env.FRONTEND_URL || '*';
+
+// CORS middleware for cross-origin requests (Vercel frontend → Railway backend)
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const allowed = FRONTEND_URL === '*' || origin === FRONTEND_URL;
+    if (allowed) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
 
 //aumentamos el buffer para que pueda subir archivos (max 50 mb)
-const io = new Server(server, {maxHttpBufferSize: 5e7});
+const io = new Server(server, {
+    maxHttpBufferSize: 5e7,
+    cors: {
+        origin: FRONTEND_URL,
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñ\s'-]{2,40}$/;
@@ -53,7 +75,7 @@ function validatePassword(password) {
 
 app.use(express.json());
 app.use(session({
-    secret: 'superchat-secret-key',
+    secret: process.env.SESSION_SECRET || 'superchat-secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: { httpOnly: true, sameSite: 'lax' }
